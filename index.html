@@ -129,11 +129,12 @@ input,select{font:inherit;color:inherit}
 .overlay{position:fixed;inset:0;background:rgba(15,20,32,.45);z-index:40;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
 @media(min-width:520px){.overlay{align-items:center}}
 .sheet{
-  background:var(--card);width:100%;max-width:520px;max-height:92vh;overflow-y:auto;
-  border-radius:20px 20px 0 0;padding:20px 18px calc(env(safe-area-inset-bottom,0px) + 20px);
+  background:var(--card);width:100%;max-width:520px;max-height:92vh;overflow-y:auto;position:relative;
+  border-radius:22px 22px 0 0;padding:24px 18px calc(env(safe-area-inset-bottom,0px) + 20px);
   animation:up .18s ease-out;
 }
-@media(min-width:520px){.sheet{border-radius:20px}}
+.sheet::before{content:"";position:absolute;top:9px;left:50%;transform:translateX(-50%);width:38px;height:5px;border-radius:3px;background:#dfe3ea}
+@media(min-width:520px){.sheet{border-radius:22px}}
 @keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
 .sheet h2{font-size:18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
 .sheet h2 .close{font-size:22px;color:var(--muted);padding:4px 8px}
@@ -143,19 +144,28 @@ input,select{font:inherit;color:inherit}
   width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:11px;background:#fbfcfe;font-size:16px;
 }
 .field input:focus,.field select:focus{outline:none;border-color:var(--brand)}
+.field input::placeholder{color:#b7bec9;font-weight:400}
 .amt-wrap{position:relative}
-.amt-wrap input{padding-right:44px !important;font-size:22px !important;font-weight:700}
-.amt-wrap .k{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-weight:800;color:var(--brand);font-size:18px}
-.amt-hint{font-size:12.5px;color:var(--muted);margin-top:4px}
+.amt-wrap input{padding-right:42px !important;font-size:22px !important;font-weight:700}
+.amt-wrap .k{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-weight:600;color:#aeb6c2;font-size:17px}
 .seg{display:flex;background:#eef1f5;border-radius:11px;padding:3px;gap:3px}
 .seg button{flex:1;padding:9px 0;border-radius:9px;font-weight:600;font-size:14px;color:var(--muted)}
 .seg button.on{background:#fff;color:var(--brand2);box-shadow:0 1px 4px rgba(0,0,0,.12)}
-.chk-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}
-.chk-row:last-child{border-bottom:none}
-.chk-row input[type=checkbox]{width:21px;height:21px;accent-color:var(--brand);flex:none}
-.chk-row .nm{flex:1;font-weight:600}
-.chk-row .share{width:74px;padding:7px 9px;border:1.5px solid var(--line);border-radius:9px;text-align:center}
-.chk-row .owe{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.pick-row{display:flex;flex-wrap:wrap;gap:8px}
+.pick{padding:10px 16px;border-radius:22px;background:#eef1f5;color:var(--ink);font-weight:600;font-size:14.5px;border:1.5px solid transparent;transition:transform .1s,background .12s,color .12s;-webkit-user-select:none;user-select:none;line-height:1}
+.pick:active{transform:scale(.95)}
+.pick.on{background:var(--brand);color:#fff;border-color:var(--brand);box-shadow:0 2px 8px rgba(15,157,118,.28)}
+.per-line{margin-top:12px;font-size:13.5px;color:var(--muted);text-align:center}
+.per-line b{color:var(--brand2)}
+.share-list{margin-top:14px;background:#f7f8fb;border-radius:13px;padding:2px 13px}
+.share-item{display:flex;align-items:center;gap:12px;padding:10px 2px;border-bottom:1px solid var(--line)}
+.share-item:last-child{border-bottom:none}
+.share-item .nm{flex:1;font-weight:600}
+.share-item .owe{font-size:12.5px;color:var(--muted);white-space:nowrap;min-width:52px;text-align:right}
+.stepper{display:inline-flex;align-items:center;background:#fff;border:1.5px solid var(--line);border-radius:11px;overflow:hidden}
+.stepper button{width:40px;height:36px;font-size:22px;font-weight:400;color:var(--brand)}
+.stepper button:active{background:#eef1f5}
+.stepper .v{width:30px;text-align:center;font-weight:700;font-size:15px}
 .row2{display:flex;gap:10px}.row2>*{flex:1}
 
 /* ---------- PIN ---------- */
@@ -664,41 +674,60 @@ function openExpModal(id){
 function drawExpModal(){
   const trip = state.trips[view.tripId];
   const d = expDraft;
-  const payerOpts = Object.entries(trip.members).map(([mid,m])=>
-    `<option value="${mid}" ${mid===d.payer?'selected':''}>${esc(m.name)}</option>`).join('');
   const amount = parseK(d.amountStr);
   const preview = isFinite(amount) ? expenseShares({amount, splitType:d.splitType, split:d.split}) : {};
-  const rows = Object.entries(trip.members).map(([mid,m])=>{
+
+  const payerPills = Object.entries(trip.members).map(([mid,m])=>
+    `<button type="button" class="pick ${mid===d.payer?'on':''}" onclick="expSetPayer('${mid}')">${esc(m.name)}</button>`).join('');
+
+  const partPills = Object.entries(trip.members).map(([mid,m])=>{
     const on = d.split[mid]!==undefined;
-    const shareInput = d.splitType==='shares'
-      ? `<input class="share" type="number" min="0" step="0.5" value="${on?(d.split[mid]||0):1}" ${on?'':'disabled'} onchange="expShare('${mid}',this.value)">`
-      : '';
-    const owe = on && preview[mid]!==undefined ? `<span class="owe">${fmtK(preview[mid])}</span>` : '';
-    return `<div class="chk-row">
-      <input type="checkbox" ${on?'checked':''} onchange="expToggle('${mid}',this.checked)">
-      <span class="nm" style="color:${on?'inherit':'var(--muted)'}">${esc(m.name)}</span>
-      ${owe}${shareInput}
-    </div>`;
+    return `<button type="button" class="pick ${on?'on':''}" onclick="expToggle('${mid}',${!on})">${on?'✓ ':''}${esc(m.name)}</button>`;
   }).join('');
+
+  const nPart = Object.keys(d.split).length;
+  let splitDetail = '';
+  if(d.splitType==='shares'){
+    const items = Object.keys(d.split).map(mid=>{
+      const sh = Number(d.split[mid])||0;
+      return `<div class="share-item">
+        <span class="nm">${esc(memberName(trip,mid))}</span>
+        <span class="owe" id="owe-${mid}">${preview[mid]!==undefined?fmtK(preview[mid]):''}</span>
+        <div class="stepper">
+          <button type="button" onclick="expShareStep('${mid}',-1)">−</button>
+          <span class="v">${sh}</span>
+          <button type="button" onclick="expShareStep('${mid}',1)">+</button>
+        </div>
+      </div>`;
+    }).join('');
+    splitDetail = nPart ? `<div class="share-list">${items}</div>` : `<div class="per-line">Chưa chọn ai</div>`;
+  }else{
+    let txt;
+    if(!nPart) txt = 'Chưa chọn ai';
+    else if(isFinite(amount)&&amount>0) txt = 'Mỗi người trả ~ <b>'+fmtK(Math.round(amount/nPart))+'</b>';
+    else txt = 'Chia đều cho '+nPart+' người';
+    splitDetail = `<div class="per-line" id="f-split-summary">${txt}</div>`;
+  }
+
   showModal(`
     <h2>${d.id?'Sửa khoản chi':'Thêm khoản chi'} <button class="close" onclick="closeModal()">✕</button></h2>
     <div class="field"><label>Nội dung</label><input type="text" id="f-exp-desc" placeholder="VD: Ăn tối hải sản" value="${esc(d.desc)}" onchange="expDraft.desc=this.value"></div>
     <div class="row2">
-      <div class="field"><label>Số tiền (đơn vị k)</label>
+      <div class="field"><label>Số tiền</label>
         <div class="amt-wrap"><input type="text" inputmode="decimal" id="f-exp-amt" placeholder="150" value="${esc(d.amountStr)}" oninput="expAmt(this.value)"><span class="k">k</span></div>
-        <div class="amt-hint" id="f-amt-hint">${isFinite(amount)?'= '+fmtVND(amount):'Nhập 150 nghĩa là 150.000đ'}</div>
       </div>
       <div class="field"><label>Ngày</label><input type="date" id="f-exp-date" value="${d.date}" onchange="expDraft.date=this.value"></div>
     </div>
-    <div class="field"><label>Ai trả trước?</label><select onchange="expDraft.payer=this.value">${payerOpts}</select></div>
+    <div class="field"><label>Ai trả trước?</label><div class="pick-row">${payerPills}</div></div>
     <div class="field"><label>Cách chia</label>
       <div class="seg">
         <button class="${d.splitType==='equal'?'on':''}" onclick="expSplitType('equal')">Chia đều</button>
         <button class="${d.splitType==='shares'?'on':''}" onclick="expSplitType('shares')">Theo phần</button>
       </div>
     </div>
-    <div class="field"><label>Ai tham gia khoản này? ${d.splitType==='shares'?'(nhập số phần mỗi người)':''}</label>
-      <div class="card" style="padding:4px 10px;box-shadow:none;border:1.5px solid var(--line)">${rows}</div>
+    <div class="field"><label>Ai tham gia khoản này?</label>
+      <div class="pick-row">${partPills}</div>
+      ${splitDetail}
     </div>
     <div class="row2">
       ${d.id?`<button class="btn danger" onclick="deleteExpense('${d.id}')">🗑 Xóa</button>`:''}
@@ -706,11 +735,27 @@ function drawExpModal(){
     </div>`);
   if(!d.id && !d.desc) setTimeout(()=>document.getElementById('f-exp-desc').focus(),50);
 }
+function expSetPayer(mid){ expDraft.payer=mid; keepDesc(); drawExpModal(); }
+function expShareStep(mid,delta){
+  const cur = Number(expDraft.split[mid])||0;
+  expDraft.split[mid] = Math.max(1, cur+delta);
+  keepDesc(); drawExpModal();
+}
 function expAmt(v){
   expDraft.amountStr = v;
   const a = parseK(v);
-  const hint = document.getElementById('f-amt-hint');
-  if(hint) hint.textContent = isFinite(a) ? '= '+fmtVND(a) : 'Nhập 150 nghĩa là 150.000đ';
+  const preview = isFinite(a) ? expenseShares({amount:a, splitType:expDraft.splitType, split:expDraft.split}) : {};
+  Object.keys(expDraft.split).forEach(mid=>{
+    const el = document.getElementById('owe-'+mid);
+    if(el) el.textContent = preview[mid]!==undefined ? fmtK(preview[mid]) : '';
+  });
+  const sm = document.getElementById('f-split-summary');
+  if(sm){
+    const n = Object.keys(expDraft.split).length;
+    if(!n) sm.textContent = 'Chưa chọn ai';
+    else if(isFinite(a)&&a>0) sm.innerHTML = 'Mỗi người trả ~ <b>'+fmtK(Math.round(a/n))+'</b>';
+    else sm.textContent = 'Chia đều cho '+n+' người';
+  }
 }
 function expSplitType(t){ expDraft.splitType = t; keepDesc(); drawExpModal(); }
 function expToggle(mid,on){

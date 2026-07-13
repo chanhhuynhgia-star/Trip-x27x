@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Chia Tiền Trip</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💸</text></svg>">
+<!--
+════════════════════════════════════════════════════════════════════
+  CHIA TIỀN TRIP — app chia tiền kiểu Splitwise, dùng cá nhân
+  HƯỚNG DẪN CẤU HÌNH: kéo xuống phần "CẤU HÌNH" ngay dưới đây,
+  dán databaseURL Firebase của bạn vào là xong.
+  (Xem file HUONG-DAN-CAI-DAT.md để biết cách lấy databaseURL)
+════════════════════════════════════════════════════════════════════
+-->
+<style>
+:root{
+  --bg:#f4f5f7; --card:#ffffff; --ink:#1c2333; --muted:#7b8494;
+  --brand:#0f9d76; --brand2:#0b7f60; --danger:#e05252; --amber:#e8a13c;
+  --line:#e6e8ee; --pos:#0f9d76; --neg:#e05252;
+  --shadow:0 1px 3px rgba(20,30,50,.08),0 4px 14px rgba(20,30,50,.06);
+  --radius:14px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  background:var(--bg); color:var(--ink); font-size:16px; line-height:1.45;
+}
+#app{max-width:640px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;padding-bottom:90px}
+button{font:inherit;border:none;background:none;cursor:pointer;color:inherit}
+input,select{font:inherit;color:inherit}
+
+/* ---------- header ---------- */
+.hdr{
+  position:sticky;top:0;z-index:20;
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  color:#fff;padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px;
+  display:flex;align-items:center;gap:10px;
+  border-radius:0 0 18px 18px;box-shadow:var(--shadow);
+}
+.hdr h1{font-size:19px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr .sub{font-size:12px;opacity:.85;font-weight:400;display:block}
+.icon-btn{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:19px;background:rgba(255,255,255,.16);flex:none}
+.icon-btn:active{background:rgba(255,255,255,.3)}
+.sync-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.sync-dot.ok{background:#8ef0c0}.sync-dot.busy{background:#ffd66e}.sync-dot.off{background:#ff9c9c}.sync-dot.none{background:#cfd6df}
+
+/* ---------- generic ---------- */
+.wrap{padding:16px;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 16px}
+.muted{color:var(--muted);font-size:13px}
+.center{text-align:center}
+.empty{padding:44px 20px;text-align:center;color:var(--muted)}
+.empty .big{font-size:44px;margin-bottom:10px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--brand);color:#fff;font-weight:600;border-radius:12px;
+  padding:12px 18px;box-shadow:var(--shadow);
+}
+.btn:active{background:var(--brand2)}
+.btn.ghost{background:#eef1f5;color:var(--ink);box-shadow:none}
+.btn.danger{background:var(--danger)}
+.btn.small{padding:8px 12px;font-size:14px;border-radius:10px}
+.btn.block{width:100%}
+.fab{
+  position:fixed;bottom:calc(env(safe-area-inset-bottom,0px) + 78px);right:calc(50% - 312px);
+  width:58px;height:58px;border-radius:50%;background:var(--brand);color:#fff;font-size:28px;
+  box-shadow:0 6px 20px rgba(15,157,118,.45);display:flex;align-items:center;justify-content:center;z-index:15;
+}
+@media(max-width:660px){.fab{right:18px}}
+.fab:active{transform:scale(.94)}
+
+/* ---------- trip list ---------- */
+.trip-item{display:flex;align-items:center;gap:14px;cursor:pointer}
+.trip-item .emoji{font-size:30px;flex:none}
+.trip-item .info{flex:1;min-width:0}
+.trip-item .name{font-weight:700;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip-item .amt{font-weight:700;color:var(--brand);white-space:nowrap}
+
+/* ---------- tabs ---------- */
+.tabs{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:640px;
+  background:var(--card);display:flex;border-top:1px solid var(--line);z-index:20;
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.tabs button{flex:1;padding:10px 0 8px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;color:var(--muted);font-weight:600}
+.tabs button .ticon{font-size:21px}
+.tabs button.on{color:var(--brand)}
+
+/* ---------- expense list ---------- */
+.exp{display:flex;gap:12px;align-items:center;cursor:pointer}
+.exp .cal{flex:none;width:44px;text-align:center;background:#eef6f3;border-radius:10px;padding:5px 0}
+.exp .cal .d{font-weight:800;font-size:17px;color:var(--brand2)}
+.exp .cal .m{font-size:10.5px;color:var(--muted);text-transform:uppercase}
+.exp .mid{flex:1;min-width:0}
+.exp .desc{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.exp .amt{font-weight:800;white-space:nowrap;text-align:right}
+.exp .amt .per{display:block;font-size:11.5px;color:var(--muted);font-weight:500}
+.day-sep{font-size:12.5px;font-weight:700;color:var(--muted);margin:6px 2px -4px;text-transform:uppercase;letter-spacing:.4px}
+.total-bar{display:flex;justify-content:space-between;align-items:baseline}
+.total-bar b{font-size:20px;color:var(--brand2)}
+
+/* ---------- members ---------- */
+.mem{display:flex;align-items:center;gap:12px}
+.avatar{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:16px;flex:none}
+.mem .info{flex:1;min-width:0}
+.mem .bal{font-weight:800;white-space:nowrap}
+.bal.pos{color:var(--pos)}.bal.neg{color:var(--neg)}.bal.zero{color:var(--muted)}
+.mem .x{color:var(--muted);font-size:18px;padding:8px}
+
+/* ---------- settle ---------- */
+.transfer{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.transfer .who{font-weight:700}
+.transfer .arrow{color:var(--muted)}
+.transfer .amt{font-weight:800;color:var(--brand2);margin-left:auto}
+.pay-log{display:flex;align-items:center;gap:10px;font-size:14px}
+.pay-log .amt{font-weight:700;margin-left:auto}
+.bar-row{display:flex;align-items:center;gap:10px;margin:7px 0}
+.bar-row .nm{width:86px;flex:none;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-track{flex:1;height:18px;position:relative}
+.bar-track .zero{position:absolute;left:50%;top:-2px;bottom:-2px;width:1.5px;background:var(--line)}
+.bar-track .fill{position:absolute;top:2px;bottom:2px;border-radius:6px}
+.bar-row .val{width:74px;flex:none;text-align:right;font-size:13px;font-weight:700}
+
+/* ---------- modal ---------- */
+.overlay{position:fixed;inset:0;background:rgba(15,20,32,.45);z-index:40;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(2px)}
+@media(min-width:520px){.overlay{align-items:center}}
+.sheet{
+  background:var(--card);width:100%;max-width:520px;max-height:92vh;overflow-y:auto;
+  border-radius:20px 20px 0 0;padding:20px 18px calc(env(safe-area-inset-bottom,0px) + 20px);
+  animation:up .18s ease-out;
+}
+@media(min-width:520px){.sheet{border-radius:20px}}
+@keyframes up{from{transform:translateY(40px);opacity:.4}to{transform:none;opacity:1}}
+.sheet h2{font-size:18px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
+.sheet h2 .close{font-size:22px;color:var(--muted);padding:4px 8px}
+.field{margin-bottom:13px}
+.field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:5px}
+.field input[type=text],.field input[type=number],.field input[type=date],.field select{
+  width:100%;padding:12px 13px;border:1.5px solid var(--line);border-radius:11px;background:#fbfcfe;font-size:16px;
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--brand)}
+.amt-wrap{position:relative}
+.amt-wrap input{padding-right:44px !important;font-size:22px !important;font-weight:700}
+.amt-wrap .k{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-weight:800;color:var(--brand);font-size:18px}
+.amt-hint{font-size:12.5px;color:var(--muted);margin-top:4px}
+.seg{display:flex;background:#eef1f5;border-radius:11px;padding:3px;gap:3px}
+.seg button{flex:1;padding:9px 0;border-radius:9px;font-weight:600;font-size:14px;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--brand2);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.chk-row{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}
+.chk-row:last-child{border-bottom:none}
+.chk-row input[type=checkbox]{width:21px;height:21px;accent-color:var(--brand);flex:none}
+.chk-row .nm{flex:1;font-weight:600}
+.chk-row .share{width:74px;padding:7px 9px;border:1.5px solid var(--line);border-radius:9px;text-align:center}
+.chk-row .owe{font-size:12.5px;color:var(--muted);white-space:nowrap}
+.row2{display:flex;gap:10px}.row2>*{flex:1}
+
+/* ---------- PIN ---------- */
+#pin-screen{position:fixed;inset:0;background:linear-gradient(160deg,#0e5c47,#0f9d76);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:18px;padding:20px}
+#pin-screen .logo{font-size:52px}
+#pin-dots{display:flex;gap:14px;height:16px}
+#pin-dots span{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.7)}
+#pin-dots span.f{background:#fff;border-color:#fff}
+.pinpad{display:grid;grid-template-columns:repeat(3,72px);gap:14px;margin-top:8px}
+.pinpad button{height:72px;border-radius:50%;background:rgba(255,255,255,.14);font-size:26px;font-weight:600;color:#fff}
+.pinpad button:active{background:rgba(255,255,255,.32)}
+.pin-err{animation:shake .35s}
+@keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+
+.banner{background:#fff6e4;border:1px solid #f3ddb0;color:#8a6117;border-radius:12px;padding:10px 14px;font-size:13.5px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 84px);background:#1c2333;color:#fff;padding:10px 18px;border-radius:24px;font-size:14px;z-index:60;box-shadow:var(--shadow);opacity:0;transition:opacity .2s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="pin-screen" style="display:none">
+  <div class="logo">💸</div>
+  <div style="font-weight:700;font-size:18px">Nhập mã PIN</div>
+  <div id="pin-dots"><span></span><span></span><span></span><span></span></div>
+  <div class="pinpad">
+    <button onclick="pinKey('1')">1</button><button onclick="pinKey('2')">2</button><button onclick="pinKey('3')">3</button>
+    <button onclick="pinKey('4')">4</button><button onclick="pinKey('5')">5</button><button onclick="pinKey('6')">6</button>
+    <button onclick="pinKey('7')">7</button><button onclick="pinKey('8')">8</button><button onclick="pinKey('9')">9</button>
+    <button style="visibility:hidden"></button><button onclick="pinKey('0')">0</button><button onclick="pinKey('del')">⌫</button>
+  </div>
+</div>
+<div id="app"></div>
+<div id="toast" class="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+/* ════════════════════════════════════════════════════════════════
+   ►►► CẤU HÌNH — CHỈNH 3 DÒNG DƯỚI ĐÂY ◄◄◄
+   1. databaseURL : dán URL Realtime Database từ Firebase
+      (dạng https://ten-project-default-rtdb.asia-southeast1.firebasedatabase.app)
+      Để trống "" thì app vẫn chạy nhưng chỉ lưu trên thiết bị này.
+   2. dataPath    : chuỗi bí mật tùy ý (như mật khẩu của dữ liệu) —
+      đổi thành chuỗi ngẫu nhiên của riêng bạn, ví dụ "trip-x7k2m9"
+   3. pin         : mã PIN 4 số khi mở app. Để "" nếu không muốn khóa.
+   ════════════════════════════════════════════════════════════════ */
+const APP_CONFIG = {
+  databaseURL: "https://console.firebase.google.com/u/0/project/chia-tien-trip/database/chia-tien-trip-default-rtdb/data/~2F",
+  dataPath: "Chanh@9236933",
+  pin: "9236"
+};
+/* ════════════════ hết phần cấu hình ════════════════ */
+
+/*__CORE_START__*/
+// ---------- tiền tệ: nhập theo đơn vị k (nghìn đồng), lưu nội bộ bằng đồng ----------
+function parseK(str){                       // "150" -> 150000 ; "150,5" -> 150500
+  if(str===null||str===undefined) return NaN;
+  const v = parseFloat(String(str).trim().replace(/\s/g,'').replace(',','.'));
+  if(!isFinite(v)||v<0) return NaN;
+  return Math.round(v*1000);
+}
+function fmtK(dong){                        // 1250000 -> "1.250k"
+  const k = dong/1000;
+  const sign = k<0 ? '-' : '';
+  const a = Math.abs(k);
+  const whole = Math.floor(a);
+  const frac = Math.round((a-whole)*10)/10;
+  let s = whole.toLocaleString('vi-VN');
+  if(frac>=1){ s = (whole+Math.floor(frac)).toLocaleString('vi-VN'); }
+  else if(frac>0){ s += ','+String(frac).split('.')[1]; }
+  return sign+s+'k';
+}
+function fmtVND(dong){ return Math.round(dong).toLocaleString('vi-VN')+'đ'; }
+
+// ---------- chia một khoản chi cho người tham gia ----------
+// exp.split = { memberId: shares } ; splitType 'equal' => shares đều =1
+function expenseShares(exp){
+  const ids = Object.keys(exp.split||{});
+  const out = {};
+  if(!ids.length) return out;
+  const total = exp.amount;
+  let sumShares = 0;
+  ids.forEach(id=>{ sumShares += (exp.splitType==='shares' ? (Number(exp.split[id])||0) : 1); });
+  if(sumShares<=0) return out;
+  let acc = 0;
+  ids.forEach((id,i)=>{
+    const sh = exp.splitType==='shares' ? (Number(exp.split[id])||0) : 1;
+    let part;
+    if(i===ids.length-1) part = total-acc;                  // người cuối nhận phần dư làm tròn
+    else { part = Math.round(total*sh/sumShares); acc += part; }
+    out[id] = part;
+  });
+  return out;
+}
+
+// ---------- số dư từng người ----------
+// dương = người khác nợ mình ; âm = mình nợ người khác
+function computeBalances(trip){
+  const bal = {};
+  Object.keys(trip.members||{}).forEach(id=>bal[id]=0);
+  Object.values(trip.expenses||{}).forEach(exp=>{
+    if(bal[exp.payer]===undefined) bal[exp.payer]=0;
+    bal[exp.payer] += exp.amount;
+    const shares = expenseShares(exp);
+    Object.keys(shares).forEach(id=>{
+      if(bal[id]===undefined) bal[id]=0;
+      bal[id] -= shares[id];
+    });
+  });
+  Object.values(trip.payments||{}).forEach(p=>{             // đã trả nợ ngoài đời
+    if(bal[p.from]===undefined) bal[p.from]=0;
+    if(bal[p.to]===undefined) bal[p.to]=0;
+    bal[p.from] += p.amount;
+    bal[p.to]   -= p.amount;
+  });
+  return bal;
+}
+
+// ---------- tối ưu số lần chuyển tiền (greedy lớn nhất trước) ----------
+function computeSettlements(balances){
+  const EPS = 500; // bỏ qua chênh lệch dưới 500đ do làm tròn
+  const debt = [], cred = [];
+  Object.keys(balances).forEach(id=>{
+    const b = balances[id];
+    if(b < -EPS) debt.push({id, v:-b});
+    else if(b > EPS) cred.push({id, v:b});
+  });
+  debt.sort((a,b)=>b.v-a.v); cred.sort((a,b)=>b.v-a.v);
+  const res = [];
+  let i=0,j=0;
+  while(i<debt.length && j<cred.length){
+    const pay = Math.min(debt[i].v, cred[j].v);
+    res.push({from:debt[i].id, to:cred[j].id, amount:pay});
+    debt[i].v -= pay; cred[j].v -= pay;
+    if(debt[i].v <= EPS) i++;
+    if(cred[j].v <= EPS) j++;
+  }
+  return res;
+}
+/*__CORE_END__*/
+
+// ---------- state & sync ----------
+const LS_KEY = 'chiatien.'+APP_CONFIG.dataPath;
+let state = { trips:{} };
+let db = null, syncStatus = 'none'; // none | ok | busy | off
+let view = { screen:'home', tripId:null, tab:'exp' };
+let saveTimer = null;
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function loadLocal(){
+  try{ const raw = localStorage.getItem(LS_KEY); if(raw) state = JSON.parse(raw); }catch(e){}
+  if(!state || typeof state!=='object') state = {trips:{}};
+  if(!state.trips) state.trips = {};
+}
+function persist(){
+  localStorage.setItem(LS_KEY, JSON.stringify(state));
+  if(db){
+    syncStatus='busy'; renderSyncDot();
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(()=>{
+      db.ref(APP_CONFIG.dataPath).set(state)
+        .then(()=>{ syncStatus='ok'; renderSyncDot(); })
+        .catch(()=>{ syncStatus='off'; renderSyncDot(); toast('⚠️ Chưa lưu được lên cloud'); });
+    }, 350);
+  }
+}
+function initFirebase(){
+  if(!APP_CONFIG.databaseURL){ syncStatus='none'; return; }
+  try{
+    firebase.initializeApp({ databaseURL: APP_CONFIG.databaseURL });
+    db = firebase.database();
+    db.ref(APP_CONFIG.dataPath).on('value', snap=>{
+      const remote = snap.val();
+      if(remote && JSON.stringify(remote)!==JSON.stringify(state)){
+        state = remote;
+        if(!state.trips) state.trips={};
+        localStorage.setItem(LS_KEY, JSON.stringify(state));
+        render();
+      }
+      if(syncStatus!=='busy'){ syncStatus='ok'; renderSyncDot(); }
+    }, err=>{ syncStatus='off'; renderSyncDot(); });
+    db.ref('.info/connected').on('value', s=>{
+      if(s.val()===false && syncStatus!=='none'){ syncStatus='off'; renderSyncDot(); }
+    });
+  }catch(e){ syncStatus='off'; }
+}
+function renderSyncDot(){
+  const d = document.getElementById('syncdot');
+  if(d) d.className = 'sync-dot '+syncStatus;
+}
+function syncLabel(){
+  return {ok:'Đã đồng bộ cloud', busy:'Đang lưu…', off:'Mất kết nối — lưu tạm trên máy', none:'Chưa cấu hình cloud (chỉ lưu trên máy này)'}[syncStatus];
+}
+
+// ---------- PIN ----------
+let pinBuf = '';
+function pinKey(k){
+  if(k==='del'){ pinBuf = pinBuf.slice(0,-1); }
+  else if(pinBuf.length<4){ pinBuf += k; }
+  const dots = document.querySelectorAll('#pin-dots span');
+  dots.forEach((d,i)=>d.classList.toggle('f', i<pinBuf.length));
+  if(pinBuf.length===4){
+    if(pinBuf===APP_CONFIG.pin){
+      sessionStorage.setItem('chiatien.unlocked','1');
+      document.getElementById('pin-screen').style.display='none';
+    }else{
+      const el = document.getElementById('pin-dots');
+      el.classList.add('pin-err');
+      setTimeout(()=>{ el.classList.remove('pin-err'); pinBuf=''; dots.forEach(d=>d.classList.remove('f')); }, 380);
+    }
+  }
+}
+function checkPin(){
+  if(APP_CONFIG.pin && sessionStorage.getItem('chiatien.unlocked')!=='1'){
+    document.getElementById('pin-screen').style.display='flex';
+  }
+}
+
+// ---------- helpers ----------
+const COLORS = ['#0f9d76','#4a7de0','#e8a13c','#c65fbf','#e05252','#3aa8c9','#8a68d6','#5f9e3e','#d97744','#5470a8'];
+function memberColor(trip, id){
+  const ids = Object.keys(trip.members||{}).sort();
+  return COLORS[Math.max(0,ids.indexOf(id)) % COLORS.length];
+}
+function memberName(trip, id){ return trip.members && trip.members[id] ? trip.members[id].name : '—'; }
+function initials(name){ return (name||'?').trim().split(/\s+/).map(w=>w[0]).slice(-2).join('').toUpperCase(); }
+function tripTotal(trip){ return Object.values(trip.expenses||{}).reduce((s,e)=>s+e.amount,0); }
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fmtDate(iso){ if(!iso) return ''; const [y,m,d]=iso.split('-'); return d+'/'+m+'/'+y; }
+
+// ---------- render ----------
+function render(){
+  const app = document.getElementById('app');
+  if(view.screen==='home') app.innerHTML = renderHome();
+  else if(view.screen==='trip'){
+    const trip = state.trips[view.tripId];
+    if(!trip){ view={screen:'home'}; app.innerHTML = renderHome(); }
+    else app.innerHTML = renderTrip(trip);
+  }
+  renderSyncDot();
+}
+
+function renderHome(){
+  const trips = Object.entries(state.trips).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  let items = trips.map(([id,t])=>{
+    const n = Object.keys(t.members||{}).length;
+    const c = Object.keys(t.expenses||{}).length;
+    return `<div class="card trip-item" onclick="openTrip('${id}')">
+      <div class="emoji">${esc(t.emoji||'🧳')}</div>
+      <div class="info">
+        <div class="name">${esc(t.name)}</div>
+        <div class="muted">${n} thành viên · ${c} khoản chi</div>
+      </div>
+      <div class="amt">${fmtK(tripTotal(t))}</div>
+    </div>`;
+  }).join('');
+  if(!trips.length) items = `<div class="empty"><div class="big">🏝️</div>Chưa có chuyến đi nào.<br>Bấm nút <b>＋</b> để tạo chuyến đầu tiên!</div>`;
+  const banner = syncStatus==='none' ? `<div class="banner">📴 Chưa kết nối cloud — dữ liệu chỉ lưu trên thiết bị này. Mở file <b>HUONG-DAN-CAI-DAT.md</b> để bật đồng bộ Firebase (miễn phí, ~5 phút).</div>` : '';
+  return `
+  <div class="hdr">
+    <div style="flex:1">
+      <h1>💸 Chia Tiền Trip</h1>
+      <span class="sub"><span id="syncdot" class="sync-dot ${syncStatus}"></span> ${syncLabel()}</span>
+    </div>
+  </div>
+  <div class="wrap">${banner}${items}</div>
+  <button class="fab" onclick="openTripModal()">＋</button>`;
+}
+
+function openTrip(id){ view={screen:'trip', tripId:id, tab:'exp'}; render(); window.scrollTo(0,0); }
+function goHome(){ view={screen:'home'}; render(); }
+function setTab(t){ view.tab=t; render(); }
+
+function renderTrip(trip){
+  const tabs = `
+  <div class="tabs">
+    <button class="${view.tab==='exp'?'on':''}" onclick="setTab('exp')"><span class="ticon">🧾</span>Chi phí</button>
+    <button class="${view.tab==='mem'?'on':''}" onclick="setTab('mem')"><span class="ticon">👥</span>Thành viên</button>
+    <button class="${view.tab==='settle'?'on':''}" onclick="setTab('settle')"><span class="ticon">🤝</span>Tất toán</button>
+  </div>`;
+  let body='';
+  if(view.tab==='exp') body = renderExpenses(trip);
+  else if(view.tab==='mem') body = renderMembers(trip);
+  else body = renderSettle(trip);
+  return `
+  <div class="hdr">
+    <button class="icon-btn" onclick="goHome()">←</button>
+    <div style="flex:1;min-width:0">
+      <h1>${esc(trip.emoji||'🧳')} ${esc(trip.name)}</h1>
+      <span class="sub"><span id="syncdot" class="sync-dot ${syncStatus}"></span> ${syncLabel()}</span>
+    </div>
+    <button class="icon-btn" onclick="openTripModal('${view.tripId}')">✏️</button>
+  </div>
+  ${body}${tabs}
+  ${view.tab==='exp' ? `<button class="fab" onclick="openExpModal()">＋</button>` : ''}`;
+}
+
+function renderExpenses(trip){
+  const exps = Object.entries(trip.expenses||{}).sort((a,b)=>{
+    if(a[1].date!==b[1].date) return a[1].date < b[1].date ? 1 : -1;
+    return (b[1].createdAt||0)-(a[1].createdAt||0);
+  });
+  const memberCount = Object.keys(trip.members||{}).length;
+  if(memberCount<2){
+    return `<div class="wrap"><div class="empty"><div class="big">👥</div>Thêm ít nhất 2 thành viên trước nhé.<br><br><button class="btn" onclick="setTab('mem')">＋ Thêm thành viên</button></div></div>`;
+  }
+  if(!exps.length){
+    return `<div class="wrap"><div class="empty"><div class="big">🧾</div>Chưa có khoản chi nào.<br>Bấm <b>＋</b> để thêm khoản đầu tiên.</div></div>`;
+  }
+  let html = `<div class="wrap"><div class="card total-bar"><span class="muted">Tổng chi cả chuyến</span><b>${fmtK(tripTotal(trip))}</b></div>`;
+  let lastDate = null;
+  exps.forEach(([id,e])=>{
+    if(e.date!==lastDate){ html += `<div class="day-sep">${fmtDate(e.date)}</div>`; lastDate = e.date; }
+    const [y,m,d] = (e.date||'').split('-');
+    const nParts = Object.keys(e.split||{}).length;
+    html += `<div class="card exp" onclick="openExpModal('${id}')">
+      <div class="cal"><div class="d">${d||'?'}</div><div class="m">Th${Number(m)||'?'}</div></div>
+      <div class="mid">
+        <div class="desc">${esc(e.desc)}</div>
+        <div class="muted"><b style="color:${memberColor(trip,e.payer)}">${esc(memberName(trip,e.payer))}</b> trả trước · ${nParts}/${memberCount} người chia${e.splitType==='shares'?' (theo phần)':''}</div>
+      </div>
+      <div class="amt">${fmtK(e.amount)}<span class="per">${fmtVND(e.amount)}</span></div>
+    </div>`;
+  });
+  return html+'</div>';
+}
+
+function renderMembers(trip){
+  const bal = computeBalances(trip);
+  const ids = Object.keys(trip.members||{});
+  const paidBy = {}; const owedBy = {};
+  ids.forEach(id=>{paidBy[id]=0;owedBy[id]=0;});
+  Object.values(trip.expenses||{}).forEach(e=>{
+    paidBy[e.payer]=(paidBy[e.payer]||0)+e.amount;
+    const sh = expenseShares(e);
+    Object.keys(sh).forEach(id=>owedBy[id]=(owedBy[id]||0)+sh[id]);
+  });
+  let list = ids.map(id=>{
+    const m = trip.members[id];
+    const b = bal[id]||0;
+    const cls = b>500?'pos':(b<-500?'neg':'zero');
+    const txt = b>500?`được nhận ${fmtK(b)}`:(b<-500?`còn nợ ${fmtK(-b)}`:'đã cân bằng');
+    return `<div class="card mem">
+      <div class="avatar" style="background:${memberColor(trip,id)}">${initials(m.name)}</div>
+      <div class="info">
+        <div style="font-weight:700">${esc(m.name)}</div>
+        <div class="muted">đã ứng ${fmtK(paidBy[id]||0)} · phần của mình ${fmtK(owedBy[id]||0)}</div>
+      </div>
+      <div class="bal ${cls}">${txt}</div>
+      <button class="x" onclick="event.stopPropagation();removeMember('${id}')">✕</button>
+    </div>`;
+  }).join('');
+  if(!ids.length) list = `<div class="empty"><div class="big">👥</div>Chưa có thành viên nào trong chuyến này.</div>`;
+  return `<div class="wrap">${list}
+    <button class="btn block ghost" onclick="addMemberPrompt()">＋ Thêm thành viên</button>
+  </div>`;
+}
+
+function renderSettle(trip){
+  const bal = computeBalances(trip);
+  const ids = Object.keys(trip.members||{});
+  if(ids.length<2) return `<div class="wrap"><div class="empty"><div class="big">👥</div>Cần ít nhất 2 thành viên.</div></div>`;
+  const maxAbs = Math.max(1000, ...ids.map(id=>Math.abs(bal[id]||0)));
+  const bars = ids.map(id=>{
+    const b = bal[id]||0;
+    const w = Math.abs(b)/maxAbs*50;
+    const fill = b>=0
+      ? `<div class="fill" style="left:50%;width:${w}%;background:${'var(--pos)'}"></div>`
+      : `<div class="fill" style="right:50%;width:${w}%;background:${'var(--neg)'}"></div>`;
+    return `<div class="bar-row">
+      <span class="nm">${esc(memberName(trip,id))}</span>
+      <div class="bar-track"><span class="zero"></span>${fill}</div>
+      <span class="val ${b>500?'bal pos':(b<-500?'bal neg':'bal zero')}">${b>=0?'+':''}${fmtK(b)}</span>
+    </div>`;
+  }).join('');
+  const transfers = computeSettlements(bal);
+  let tHtml;
+  if(!transfers.length){
+    tHtml = `<div class="empty" style="padding:22px"><div class="big">🎉</div>Mọi người đã cân bằng — không ai nợ ai!</div>`;
+  }else{
+    tHtml = transfers.map((t,i)=>`<div class="card transfer">
+      <div class="avatar" style="width:32px;height:32px;font-size:13px;background:${memberColor(trip,t.from)}">${initials(memberName(trip,t.from))}</div>
+      <span class="who">${esc(memberName(trip,t.from))}</span>
+      <span class="arrow">➜</span>
+      <div class="avatar" style="width:32px;height:32px;font-size:13px;background:${memberColor(trip,t.to)}">${initials(memberName(trip,t.to))}</div>
+      <span class="who">${esc(memberName(trip,t.to))}</span>
+      <span class="amt">${fmtK(t.amount)}</span>
+      <button class="btn small ghost" onclick="markPaid('${t.from}','${t.to}',${t.amount})">✓ Đã trả</button>
+    </div>`).join('');
+  }
+  const pays = Object.entries(trip.payments||{}).sort((a,b)=>(b[1].createdAt||0)-(a[1].createdAt||0));
+  let payHtml = '';
+  if(pays.length){
+    payHtml = `<div class="day-sep" style="margin-top:14px">Lịch sử đã trả</div>` + pays.map(([id,p])=>
+      `<div class="card pay-log">✅ <b>${esc(memberName(trip,p.from))}</b> đã trả <b>${esc(memberName(trip,p.to))}</b>
+       <span class="muted">· ${fmtDate(p.date)}</span><span class="amt">${fmtK(p.amount)}</span>
+       <button class="x" onclick="undoPayment('${id}')" title="Hoàn tác">↩︎</button></div>`).join('');
+  }
+  return `<div class="wrap">
+    <div class="card"><div class="muted" style="margin-bottom:6px;font-weight:700">SỐ DƯ TỪNG NGƯỜI</div>${bars}</div>
+    <div class="day-sep">Cách tất toán gọn nhất (${transfers.length} lần chuyển)</div>
+    ${tHtml}${payHtml}
+  </div>`;
+}
+
+// ---------- modals ----------
+function closeModal(){ const o=document.getElementById('modal'); if(o) o.remove(); }
+function showModal(inner){
+  closeModal();
+  const o = document.createElement('div');
+  o.className='overlay'; o.id='modal';
+  o.onclick = e=>{ if(e.target===o) closeModal(); };
+  o.innerHTML = `<div class="sheet">${inner}</div>`;
+  document.body.appendChild(o);
+}
+
+// trip create/edit
+function openTripModal(id){
+  const t = id ? state.trips[id] : null;
+  showModal(`
+    <h2>${t?'Sửa chuyến đi':'Chuyến đi mới'} <button class="close" onclick="closeModal()">✕</button></h2>
+    <div class="field"><label>Tên chuyến đi</label><input type="text" id="f-trip-name" placeholder="VD: Đà Lạt 30/4" value="${t?esc(t.name):''}"></div>
+    <div class="field"><label>Biểu tượng (emoji, tùy chọn)</label><input type="text" id="f-trip-emoji" placeholder="🧳" value="${t?esc(t.emoji||''):''}"></div>
+    ${t?'':`<div class="field"><label>Thành viên ban đầu (mỗi tên 1 dòng hoặc cách nhau dấu phẩy)</label><input type="text" id="f-trip-members" placeholder="VD: Chánh, Minh, Lan"></div>`}
+    <div class="row2">
+      ${t?`<button class="btn danger" onclick="deleteTrip('${id}')">🗑 Xóa chuyến</button>`:''}
+      <button class="btn" onclick="saveTrip(${id?`'${id}'`:'null'})">💾 Lưu</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('f-trip-name').focus(),50);
+}
+function saveTrip(id){
+  const name = document.getElementById('f-trip-name').value.trim();
+  if(!name){ toast('Nhập tên chuyến đi nhé'); return; }
+  const emoji = document.getElementById('f-trip-emoji').value.trim();
+  if(id){
+    state.trips[id].name = name;
+    state.trips[id].emoji = emoji;
+  }else{
+    const tid = uid();
+    const members = {};
+    const raw = (document.getElementById('f-trip-members')||{value:''}).value;
+    raw.split(/[,\n;]+/).map(s=>s.trim()).filter(Boolean).forEach(n=>{ members[uid()] = {name:n}; });
+    state.trips[tid] = { name, emoji, createdAt:Date.now(), members, expenses:{}, payments:{} };
+    view = {screen:'trip', tripId:tid, tab: Object.keys(members).length>=2?'exp':'mem'};
+  }
+  persist(); closeModal(); render();
+}
+function deleteTrip(id){
+  confirmBox(`Xóa chuyến "<b>${esc(state.trips[id].name)}</b>" và toàn bộ chi phí của nó?`, ()=>{
+    delete state.trips[id];
+    view={screen:'home'};
+    persist(); closeModal(); render();
+  });
+}
+
+// members
+function addMemberPrompt(){
+  showModal(`
+    <h2>Thêm thành viên <button class="close" onclick="closeModal()">✕</button></h2>
+    <div class="field"><label>Tên (thêm nhiều người: cách nhau dấu phẩy)</label><input type="text" id="f-mem-name" placeholder="VD: Hùng, Trang"></div>
+    <button class="btn block" onclick="saveMember()">💾 Thêm</button>`);
+  setTimeout(()=>document.getElementById('f-mem-name').focus(),50);
+}
+function saveMember(){
+  const trip = state.trips[view.tripId];
+  const raw = document.getElementById('f-mem-name').value;
+  const names = raw.split(/[,\n;]+/).map(s=>s.trim()).filter(Boolean);
+  if(!names.length){ toast('Nhập tên nhé'); return; }
+  names.forEach(n=>{ trip.members[uid()] = {name:n}; });
+  persist(); closeModal(); render();
+}
+function removeMember(id){
+  const trip = state.trips[view.tripId];
+  const used = Object.values(trip.expenses||{}).some(e=>e.payer===id || (e.split&&e.split[id]!==undefined))
+            || Object.values(trip.payments||{}).some(p=>p.from===id||p.to===id);
+  if(used){ toast('Không xóa được: người này đã có trong khoản chi/tất toán'); return; }
+  confirmBox(`Xóa thành viên "<b>${esc(memberName(trip,id))}</b>"?`, ()=>{
+    delete trip.members[id];
+    persist(); closeModal(); render();
+  });
+}
+
+// expense create/edit
+let expDraft = null;
+function openExpModal(id){
+  const trip = state.trips[view.tripId];
+  const e = id ? trip.expenses[id] : null;
+  expDraft = {
+    id: id||null,
+    desc: e?e.desc:'',
+    amountStr: e ? String(e.amount/1000).replace('.',',') : '',
+    date: e?e.date:todayStr(),
+    payer: e?e.payer:Object.keys(trip.members)[0],
+    splitType: e?e.splitType:'equal',
+    split: e ? {...e.split} : Object.fromEntries(Object.keys(trip.members).map(k=>[k,1]))
+  };
+  drawExpModal();
+}
+function drawExpModal(){
+  const trip = state.trips[view.tripId];
+  const d = expDraft;
+  const payerOpts = Object.entries(trip.members).map(([mid,m])=>
+    `<option value="${mid}" ${mid===d.payer?'selected':''}>${esc(m.name)}</option>`).join('');
+  const amount = parseK(d.amountStr);
+  const preview = isFinite(amount) ? expenseShares({amount, splitType:d.splitType, split:d.split}) : {};
+  const rows = Object.entries(trip.members).map(([mid,m])=>{
+    const on = d.split[mid]!==undefined;
+    const shareInput = d.splitType==='shares'
+      ? `<input class="share" type="number" min="0" step="0.5" value="${on?(d.split[mid]||0):1}" ${on?'':'disabled'} onchange="expShare('${mid}',this.value)">`
+      : '';
+    const owe = on && preview[mid]!==undefined ? `<span class="owe">${fmtK(preview[mid])}</span>` : '';
+    return `<div class="chk-row">
+      <input type="checkbox" ${on?'checked':''} onchange="expToggle('${mid}',this.checked)">
+      <span class="nm" style="color:${on?'inherit':'var(--muted)'}">${esc(m.name)}</span>
+      ${owe}${shareInput}
+    </div>`;
+  }).join('');
+  showModal(`
+    <h2>${d.id?'Sửa khoản chi':'Thêm khoản chi'} <button class="close" onclick="closeModal()">✕</button></h2>
+    <div class="field"><label>Nội dung</label><input type="text" id="f-exp-desc" placeholder="VD: Ăn tối hải sản" value="${esc(d.desc)}" onchange="expDraft.desc=this.value"></div>
+    <div class="row2">
+      <div class="field"><label>Số tiền (đơn vị k)</label>
+        <div class="amt-wrap"><input type="text" inputmode="decimal" id="f-exp-amt" placeholder="150" value="${esc(d.amountStr)}" oninput="expAmt(this.value)"><span class="k">k</span></div>
+        <div class="amt-hint" id="f-amt-hint">${isFinite(amount)?'= '+fmtVND(amount):'Nhập 150 nghĩa là 150.000đ'}</div>
+      </div>
+      <div class="field"><label>Ngày</label><input type="date" id="f-exp-date" value="${d.date}" onchange="expDraft.date=this.value"></div>
+    </div>
+    <div class="field"><label>Ai trả trước?</label><select onchange="expDraft.payer=this.value">${payerOpts}</select></div>
+    <div class="field"><label>Cách chia</label>
+      <div class="seg">
+        <button class="${d.splitType==='equal'?'on':''}" onclick="expSplitType('equal')">Chia đều</button>
+        <button class="${d.splitType==='shares'?'on':''}" onclick="expSplitType('shares')">Theo phần</button>
+      </div>
+    </div>
+    <div class="field"><label>Ai tham gia khoản này? ${d.splitType==='shares'?'(nhập số phần mỗi người)':''}</label>
+      <div class="card" style="padding:4px 10px;box-shadow:none;border:1.5px solid var(--line)">${rows}</div>
+    </div>
+    <div class="row2">
+      ${d.id?`<button class="btn danger" onclick="deleteExpense('${d.id}')">🗑 Xóa</button>`:''}
+      <button class="btn" onclick="saveExpense()">💾 Lưu</button>
+    </div>`);
+  if(!d.id && !d.desc) setTimeout(()=>document.getElementById('f-exp-desc').focus(),50);
+}
+function expAmt(v){
+  expDraft.amountStr = v;
+  const a = parseK(v);
+  const hint = document.getElementById('f-amt-hint');
+  if(hint) hint.textContent = isFinite(a) ? '= '+fmtVND(a) : 'Nhập 150 nghĩa là 150.000đ';
+}
+function expSplitType(t){ expDraft.splitType = t; keepDesc(); drawExpModal(); }
+function expToggle(mid,on){
+  if(on) expDraft.split[mid] = expDraft.splitType==='shares' ? 1 : 1;
+  else delete expDraft.split[mid];
+  keepDesc(); drawExpModal();
+}
+function expShare(mid,v){ expDraft.split[mid] = Math.max(0, parseFloat(String(v).replace(',','.'))||0); keepDesc(); drawExpModal(); }
+function keepDesc(){
+  const el = document.getElementById('f-exp-desc'); if(el) expDraft.desc = el.value;
+  const dt = document.getElementById('f-exp-date'); if(dt) expDraft.date = dt.value;
+}
+function saveExpense(){
+  keepDesc();
+  const trip = state.trips[view.tripId];
+  const d = expDraft;
+  const amount = parseK(d.amountStr);
+  if(!d.desc.trim()){ toast('Nhập nội dung khoản chi'); return; }
+  if(!isFinite(amount)||amount<=0){ toast('Số tiền chưa hợp lệ'); return; }
+  if(!Object.keys(d.split).length){ toast('Chọn ít nhất 1 người tham gia'); return; }
+  if(d.splitType==='shares'){
+    const sum = Object.values(d.split).reduce((s,v)=>s+(Number(v)||0),0);
+    if(sum<=0){ toast('Tổng số phần phải lớn hơn 0'); return; }
+  }
+  const rec = { desc:d.desc.trim(), amount, date:d.date||todayStr(), payer:d.payer, splitType:d.splitType, split:{...d.split}, createdAt: d.id?(trip.expenses[d.id].createdAt||Date.now()):Date.now() };
+  trip.expenses[d.id||uid()] = rec;
+  persist(); closeModal(); render();
+}
+function deleteExpense(id){
+  const trip = state.trips[view.tripId];
+  confirmBox(`Xóa khoản "<b>${esc(trip.expenses[id].desc)}</b>"?`, ()=>{
+    delete trip.expenses[id];
+    persist(); closeModal(); render();
+  });
+}
+
+// settle payments
+function markPaid(from,to,amount){
+  const trip = state.trips[view.tripId];
+  confirmBox(`<b>${esc(memberName(trip,from))}</b> đã chuyển <b>${fmtK(amount)}</b> cho <b>${esc(memberName(trip,to))}</b>?`, ()=>{
+    if(!trip.payments) trip.payments={};
+    trip.payments[uid()] = {from,to,amount,date:todayStr(),createdAt:Date.now()};
+    persist(); closeModal(); render(); toast('Đã ghi nhận ✓');
+  });
+}
+function undoPayment(id){
+  const trip = state.trips[view.tripId];
+  const p = trip.payments[id];
+  confirmBox(`Hoàn tác khoản trả <b>${fmtK(p.amount)}</b> của <b>${esc(memberName(trip,p.from))}</b>?`, ()=>{
+    delete trip.payments[id];
+    persist(); closeModal(); render();
+  });
+}
+
+// confirm
+let confirmCb = null;
+function confirmBox(html, cb){
+  confirmCb = cb;
+  showModal(`
+    <h2>Xác nhận <button class="close" onclick="closeModal()">✕</button></h2>
+    <p style="margin-bottom:18px">${html}</p>
+    <div class="row2">
+      <button class="btn ghost" onclick="closeModal()">Hủy</button>
+      <button class="btn" onclick="confirmCb&&confirmCb()">Đồng ý</button>
+    </div>`);
+}
+
+// ---------- boot ----------
+loadLocal();
+initFirebase();
+checkPin();
+render();
+</script>
+</body>
+</html>

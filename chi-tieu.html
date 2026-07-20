@@ -221,6 +221,28 @@ input,select,textarea{font:inherit;color:inherit}
 .pinpad button:active{background:rgba(255,255,255,.32)}
 .pin-err{animation:shake .35s}
 @keyframes shake{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+
+/* ---------- kỳ phân tích (Today / WTD / MTD) ---------- */
+.ptiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ptile{background:#f7f8fb;border:1px solid var(--line);border-radius:12px;padding:9px 10px;min-width:0}
+.ptile .lb{font-size:10.5px;font-weight:700;color:var(--muted);letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ptile .v{font-size:17px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ptile .d{font-size:10.5px;font-weight:700;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ptile .d.pos{color:var(--pos)}.ptile .d.neg{color:var(--neg)}.ptile .d.zero{color:var(--muted)}
+
+/* ---------- voice input ---------- */
+.voice-zone{display:block;width:100%;border:2px dashed #ccd3e0;border-radius:14px;padding:12px 14px;text-align:center;color:var(--muted);font-size:13.5px;background:#fbfcfe;cursor:pointer;font-weight:600}
+.voice-zone:active{background:#f1f4fa}
+.voice-zone.on{border-style:solid;border-color:var(--danger);color:var(--danger);background:#fff5f5}
+.voice-zone .mic{font-size:17px;margin-right:4px}
+.voice-zone.on .mic{display:inline-block;animation:micpulse 1.1s infinite}
+@keyframes micpulse{0%,100%{opacity:1}50%{opacity:.3}}
+.voice-zone .v-tr{font-size:13.5px;color:var(--ink);font-weight:400;margin-top:6px}
+.fab.mic-fab{
+  bottom:calc(env(safe-area-inset-bottom,0px) + 148px);
+  width:48px;height:48px;font-size:21px;background:#fff;color:var(--brand);
+  box-shadow:0 4px 14px rgba(20,30,50,.28);
+}
 </style>
 </head>
 <body>
@@ -374,6 +396,78 @@ function shiftMonth(mk, delta){                                        // '2026-
   m += delta;
   while(m<1){m+=12;y--;} while(m>12){m-=12;y++;}
   return y+'-'+String(m).padStart(2,'0');
+}
+
+// ---------- kỳ phân tích: Hôm nay / WTD / MTD ----------
+function addDaysIso(iso, delta){                                       // '2026-07-20',-1 -> '2026-07-19'
+  const [y,m,d] = String(iso).split('-').map(Number);
+  const dt = new Date(y, m-1, d+delta);
+  return dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0')+'-'+String(dt.getDate()).padStart(2,'0');
+}
+function weekStartIso(iso){                                            // tuần bắt đầu Thứ Hai
+  const [y,m,d] = String(iso).split('-').map(Number);
+  const dow = (new Date(y, m-1, d).getDay()+6)%7;                      // T2=0 … CN=6
+  return addDaysIso(iso, -dow);
+}
+function sumRange(expenses, from, to){                                 // tổng chi trong [from..to] (ISO, inclusive)
+  return Object.values(expenses||{}).reduce((s,e)=>s+((e.date>=from&&e.date<=to)?e.amount:0),0);
+}
+// trả về {today,wtd,mtd} — mỗi kỳ: v = tổng kỳ này, p = tổng cùng kỳ liền trước, vs = nhãn so sánh
+function periodStats(expenses, todayIso){
+  const mStart = monthKey(todayIso)+'-01';
+  const wStart = weekStartIso(todayIso);
+  const day = Number(todayIso.slice(8));
+  const pmk = shiftMonth(monthKey(todayIso), -1);
+  const [py,pm] = pmk.split('-').map(Number);
+  const pmDays = new Date(py, pm, 0).getDate();                        // tháng trước có thể ngắn hơn
+  const pmEnd = pmk+'-'+String(Math.min(day, pmDays)).padStart(2,'0');
+  const yest = addDaysIso(todayIso,-1);
+  return {
+    today:{ v:sumRange(expenses, todayIso, todayIso), p:sumRange(expenses, yest, yest), vs:'hôm qua' },
+    wtd:  { v:sumRange(expenses, wStart, todayIso),   p:sumRange(expenses, addDaysIso(wStart,-7), addDaysIso(todayIso,-7)), vs:'tuần trước' },
+    mtd:  { v:sumRange(expenses, mStart, todayIso),   p:sumRange(expenses, pmk+'-01', pmEnd), vs:'tháng trước' }
+  };
+}
+
+// ---------- voice input parsing (thuần logic, test được) ----------
+// "cà phê highlands 35 nghìn hôm qua" -> {amount:35000, desc:'Cà phê highlands', date:hôm qua, cat:đoán theo từ khóa}
+function voiceParse(text, todayIso, cats){
+  let t = ' '+String(text||'').toLowerCase().replace(/\s+/g,' ').trim()+' ';
+  let amount = NaN, matched = '';
+  // 1) X triệu (rưỡi)
+  let m = t.match(/(\d+(?:[.,]\d+)?)\s*(triệu|trieu|tr\b)(\s*(rưỡi|ruoi))?/);
+  if(m){ amount = parseFloat(m[1].replace(',','.'))*1e6 + (m[3]?5e5:0); matched = m[0]; }
+  // 2) X nghìn/ngàn/k (rưỡi)  — "k" không được dính chữ khác (km, kg…)
+  if(!isFinite(amount)){
+    m = t.match(/(\d+(?:[.,]\d+)?)\s*(nghìn|ngàn|nghin|ngan|k(?![a-zà-ỹ]))(\s*(rưỡi|ruoi))?/);
+    if(m){ amount = parseFloat(m[1].replace(',','.'))*1000 + (m[4]?500:0); matched = m[0]; }
+  }
+  // 3) fallback: lấy SỐ CUỐI CÙNG trong câu (người nói thường kết bằng giá)
+  //    >=1000 hiểu là đồng, <1000 hiểu là nghìn (giống ô nhập tay: 150 = 150k)
+  if(!isFinite(amount)){
+    const re = /(\d{1,3}(?:\.\d{3})+|\d+)(\s*(đồng|dong|vnđ|vnd|đ(?![a-zà-ỹ])))?/g;
+    let mm, last = null;
+    while((mm = re.exec(t)) !== null) last = mm;
+    if(last){
+      const v = parseFloat(last[1].replace(/\./g,''));
+      if(isFinite(v) && v>0){ amount = (v<1000 && !last[3]) ? v*1000 : v; matched = last[0]; }
+    }
+  }
+  // ngày nói miệng
+  let date = null;
+  if(t.includes('hôm kia')) date = addDaysIso(todayIso,-2);
+  else if(t.includes('hôm qua')) date = addDaysIso(todayIso,-1);
+  // nội dung = phần còn lại sau khi bỏ số tiền + từ đệm
+  let desc = t;
+  if(matched) desc = desc.replace(matched,' ');
+  desc = desc
+    .replace(/hôm qua|hôm kia|hôm nay/g,' ')
+    .replace(/(^| )(hết|giá|tổng cộng|tổng|thanh toán|mất|tốn|chi|trả|đồng|dong|vnđ|vnd)(?= |$)/g,' ')
+    .replace(/\s+/g,' ').trim()
+    .replace(/^[,.;:\-]+|[,.;:\-]+$/g,'').trim();
+  if(desc) desc = desc.charAt(0).toUpperCase()+desc.slice(1);
+  const cat = (typeof ocrGuessCat==='function') ? ocrGuessCat(t, cats) : null;
+  return { amount, date, desc, cat };
 }
 /*__CORE_END__*/
 // ---------- danh mục mặc định (màu đã kiểm tra an toàn mù màu/độ tương phản) ----------
@@ -572,7 +666,7 @@ function render(){
     <button class="${view.tab==='list'?'on':''}" onclick="setTab('list')"><span class="ticon">🧾</span>Chi tiêu</button>
     <button class="${view.tab==='more'?'on':''}" onclick="setTab('more')"><span class="ticon">⚙️</span>Khác</button>
   </div>
-  ${view.tab!=='more' ? `<button class="fab" onclick="openExpModal()">＋</button>` : ''}`;
+  ${view.tab!=='more' ? `${voiceSupported()?`<button class="fab mic-fab" onclick="openExpModalVoice()" title="Nhập bằng giọng nói">🎤</button>`:''}<button class="fab" onclick="openExpModal()">＋</button>` : ''}`;
 }
 function setTab(t){ view.tab=t; render(); window.scrollTo(0,0); }
 function navMonth(d){ view.month = shiftMonth(view.month, d); render(); }
@@ -601,6 +695,7 @@ function renderDash(){
   const nItems = Object.values(state.expenses).filter(e=>monthKey(e.date)===mk).length;
 
   return `<div class="wrap">
+    ${renderPeriodCard()}
     ${monthNav()}
     <div class="tiles">
       <div class="tile wide">
@@ -619,6 +714,27 @@ function renderDash(){
       <h3>Theo danh mục — ${monthLabel(mk)}</h3>
       ${renderCatBars(mk, cur)}
     </div>
+  </div>`;
+}
+
+// thẻ kỳ phân tích: Hôm nay / Tuần này (WTD) / Tháng này (MTD) — luôn tính theo hôm nay
+function renderPeriodCard(){
+  const ps = periodStats(state.expenses, TODAY);
+  const cell = (lb, s)=>{
+    const diff = s.v - s.p;
+    const cls = Math.abs(diff)<500 ? 'zero' : (diff<0 ? 'pos' : 'neg');   // chi ÍT hơn = tốt
+    const txt = Math.abs(diff)<500 ? '≈ '+s.vs
+      : (diff<0 ? '↓'+fmtK(-diff) : '↑'+fmtK(diff))+' vs '+s.vs;
+    return `<div class="ptile"><div class="lb">${lb}</div><div class="v">${fmtK(s.v)}</div><div class="d ${cls}">${txt}</div></div>`;
+  };
+  return `<div class="card">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:9px">⏱️ Kỳ phân tích</h3>
+    <div class="ptiles">
+      ${cell('HÔM NAY', ps.today)}
+      ${cell('TUẦN NÀY · WTD', ps.wtd)}
+      ${cell('THÁNG NÀY · MTD', ps.mtd)}
+    </div>
+    <div class="muted" style="font-size:11.5px;margin-top:7px">So với cùng kỳ liền trước · tuần tính từ Thứ Hai</div>
   </div>`;
 }
 
@@ -782,6 +898,8 @@ function renderMore(){
         • Trạng thái: <span class="sync-dot js-syncdot ${syncStatus}"></span> ${syncLabel()}<br>
         • Nhập số tiền theo đơn vị <b>k</b>: gõ <b>150</b> = 150.000đ<br>
         • Nút <b>＋</b> → chọn <b>📷 Quét hóa đơn</b> để tự đọc số tiền, ngày và đoán danh mục từ ảnh (có thể sửa lại trước khi lưu).<br>
+        • Nút <b>🎤</b> (hoặc “Nói để nhập nhanh” trong form): nói kiểu <b>“cà phê 35 nghìn”</b>, <b>“đổ xăng 50k hôm qua”</b> — app tự tách nội dung, số tiền, ngày, danh mục.<br>
+        • Tab <b>Tổng quan</b> có thẻ ⏱️ Kỳ phân tích: <b>Hôm nay · Tuần này (WTD) · Tháng này (MTD)</b>, so với cùng kỳ liền trước.<br>
         • Ảnh hóa đơn được nén nhỏ và đồng bộ cùng dữ liệu.
       </div>
     </div>
@@ -854,6 +972,7 @@ function drawExpModal(){
   showModal(`
     <h2>${d.id?'Sửa khoản chi':'Thêm khoản chi'} <button class="close" onclick="closeModal()">✕</button></h2>
     <div class="field" id="img-slot">${imgSlotHtml()}</div>
+    <div class="field" id="voice-slot">${voiceSlotHtml()}</div>
     <div class="field"><label>Nội dung</label><input type="text" id="f-desc" placeholder="VD: Cà phê Highlands" value="${esc(d.desc)}" oninput="expDraft.desc=this.value"></div>
     <div class="row2">
       <div class="field"><label>Số tiền</label>
@@ -867,7 +986,90 @@ function drawExpModal(){
       ${d.id?`<button class="btn danger" onclick="deleteExpense('${d.id}')">🗑 Xóa</button>`:''}
       <button class="btn" onclick="saveExpense()">💾 Lưu</button>
     </div>`);
-  if(!d.id && !d.desc) setTimeout(()=>{ const el=document.getElementById('f-amt'); if(el) el.focus(); },60);
+  if(!d.id && !d.desc && !vAuto) setTimeout(()=>{ const el=document.getElementById('f-amt'); if(el) el.focus(); },60);
+}
+
+// ---------- voice input (Web Speech API, vi-VN) ----------
+let vRec = null, vActive = false, vFinal = '', vMsg = '', vAuto = false;
+function voiceSupported(){ return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+function voiceSlotHtml(){
+  if(!voiceSupported()) return '';
+  if(vActive){
+    return `<div class="voice-zone on" onclick="stopVoice()">
+      <span class="mic">🎤</span><b>Đang nghe… chạm để dừng</b>
+      <div class="v-tr" id="v-tr">${vFinal?esc(vFinal):'VD: “cà phê Highlands 35 nghìn”'}</div>
+    </div>`;
+  }
+  return `<button type="button" class="voice-zone" onclick="startVoice()">
+      <span class="mic">🎤</span><b>Nói để nhập nhanh</b> — VD: “cà phê 35 nghìn”, “đổ xăng 50k hôm qua”
+    </button>${vMsg?`<div class="ocr-found">${vMsg}</div>`:''}`;
+}
+function redrawVoiceSlot(){ const el=document.getElementById('voice-slot'); if(el) el.innerHTML=voiceSlotHtml(); }
+function startVoice(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ toast('Trình duyệt không hỗ trợ nhận dạng giọng nói — thử Chrome hoặc Safari mới nhé'); return; }
+  if(vActive) return;
+  try{ vRec = new SR(); }catch(e){ toast('Không khởi động được micro'); return; }
+  vRec.lang = 'vi-VN';
+  vRec.interimResults = true;
+  vRec.continuous = false;
+  vRec.maxAlternatives = 1;
+  vFinal=''; vMsg='';
+  vRec.onresult = ev=>{
+    let s='';
+    for(let i=0;i<ev.results.length;i++) s += ev.results[i][0].transcript;
+    vFinal = s.trim();
+    const el = document.getElementById('v-tr'); if(el) el.textContent = vFinal || '…';
+  };
+  vRec.onerror = ev=>{
+    vActive = false;
+    if(ev.error==='not-allowed' || ev.error==='service-not-allowed') vMsg='⚠️ Bạn cần cho phép trang dùng micro (biểu tượng 🔒 trên thanh địa chỉ).';
+    else if(ev.error==='no-speech') vMsg='🤫 Không nghe thấy gì — bấm 🎤 thử lại nhé.';
+    else if(ev.error!=='aborted') vMsg='⚠️ Không nghe được ('+esc(ev.error||'lỗi')+') — thử lại nhé.';
+    redrawVoiceSlot();
+  };
+  vRec.onend = ()=>{
+    const had = vActive; vActive = false;
+    if(had && vFinal) applyVoiceResult(vFinal);
+    redrawVoiceSlot();
+  };
+  vActive = true; redrawVoiceSlot();
+  try{ vRec.start(); }
+  catch(e){ vActive=false; vMsg='⚠️ Không khởi động được micro.'; redrawVoiceSlot(); }
+}
+function stopVoice(){ if(vRec){ try{ vRec.stop(); }catch(e){} } }
+function applyVoiceResult(text){
+  const d = expDraft; if(!d) return;
+  const r = voiceParse(text, TODAY, state.cats);
+  const found = [];
+  if(isFinite(r.amount) && r.amount>0){
+    d.amountStr = String(r.amount/1000).replace('.',',');
+    const el=document.getElementById('f-amt'); if(el) el.value=d.amountStr;
+    found.push('số tiền <b>'+fmtVND(r.amount)+'</b>');
+  }
+  if(r.desc){
+    d.desc = r.desc;
+    const el=document.getElementById('f-desc'); if(el) el.value=r.desc;
+    found.push('nội dung <b>'+esc(r.desc)+'</b>');
+  }
+  if(r.date){
+    d.date = r.date;
+    const el=document.getElementById('f-date'); if(el) el.value=r.date;
+    found.push('ngày <b>'+fmtDate(r.date)+'</b>');
+  }
+  if(r.cat){
+    expSetCat(r.cat);
+    found.push('danh mục <b>'+esc(catOf(r.cat).name)+'</b>');
+  }
+  vMsg = found.length
+    ? '🗣 “'+esc(text)+'”<br>✨ Đã điền: '+found.join(' · ')+'. Kiểm tra lại rồi bấm Lưu nhé.'
+    : '🗣 “'+esc(text)+'” — chưa tách được thông tin, bạn nhập tay giúp nhé.';
+}
+// mở modal và bắt đầu nghe luôn (từ nút 🎤 nổi)
+function openExpModalVoice(){
+  vAuto = true;
+  openExpModal();
+  setTimeout(()=>{ vAuto=false; startVoice(); }, 250);
 }
 function expSetCat(cid){
   expDraft.cat = cid;

@@ -325,7 +325,17 @@ function toast(msg){
 function loadLocal(){
   try{ const raw = localStorage.getItem(LS_KEY); if(raw) state = JSON.parse(raw); }catch(e){}
   if(!state || typeof state!=='object') state = {trips:{}};
+  normalizeState();
+}
+// Firebase không lưu object rỗng -> trip tải về có thể thiếu expenses/payments/members
+function normalizeState(){
+  if(!state || typeof state!=='object') state = {trips:{}};
   if(!state.trips) state.trips = {};
+  Object.values(state.trips).forEach(t=>{
+    if(!t.members)  t.members  = {};
+    if(!t.expenses) t.expenses = {};
+    if(!t.payments) t.payments = {};
+  });
 }
 function persist(){
   localStorage.setItem(LS_KEY, JSON.stringify(state));
@@ -348,7 +358,7 @@ function initFirebase(){
       const remote = snap.val();
       if(remote && JSON.stringify(remote)!==JSON.stringify(state)){
         state = remote;
-        if(!state.trips) state.trips={};
+        normalizeState();
         localStorage.setItem(LS_KEY, JSON.stringify(state));
         render();
       }
@@ -771,6 +781,7 @@ function keepDesc(){
 function saveExpense(){
   keepDesc();
   const trip = state.trips[view.tripId];
+  if(!trip.expenses) trip.expenses = {};
   const d = expDraft;
   const amount = parseK(d.amountStr);
   if(!d.desc.trim()){ toast('Nhập nội dung khoản chi'); return; }
